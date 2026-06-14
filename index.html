@@ -42,7 +42,7 @@
     <div class="dashboard__intro">
       <h2 id="library-heading" class="dashboard__heading">Simulation Library</h2>
       <p class="dashboard__lede">
-        Select a module to launch it in an immersive, focused workspace.
+        Select a module to launch it in its own dedicated, full-screen window.
       </p>
     </div>
 
@@ -56,67 +56,15 @@
       <!-- Cards injected by js/app.js -->
       <p class="library-grid__loading" id="grid-loading">Loading library…</p>
     </section>
+
+    <!-- Surfaced if the browser blocks the simulation pop-up window. -->
+    <p id="popup-warning" class="dashboard__notice" hidden>
+      ⚠ Your browser blocked the simulation window. Please allow pop-ups for
+      this site, then click the simulation again.
+    </p>
   </main>
 
-  <!-- ============================================================= -->
-  <!-- APPLET MODAL / POP-UP EXECUTION SURFACE                       -->
-  <!--                                                               -->
-  <!-- A single reusable, isolated overlay. The active applet is     -->
-  <!-- mounted into `.modal__stage`. The stage is intentionally      -->
-  <!-- layered so future features have obvious mount points:         -->
-  <!--   • render-layer   → GPU/WebGL/WebGPU canvas (60 FPS loop)    -->
-  <!--   • overlay-layer  → vector overlays (velocity / accel)       -->
-  <!--   • telemetry      → charts, graphs, digital meters           -->
-  <!--   • controls       → parameter panels + validation            -->
-  <!-- ============================================================= -->
-  <div
-    id="applet-modal"
-    class="modal"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="modal-title"
-    hidden
-  >
-    <div class="modal__backdrop" data-modal-dismiss></div>
-
-    <div class="modal__window" role="document">
-      <header class="modal__bar">
-        <div class="modal__meta">
-          <h2 id="modal-title" class="modal__title">Simulation</h2>
-          <p id="modal-desc" class="modal__desc"></p>
-        </div>
-        <div class="modal__actions">
-          <!-- HOOK: import/export simulation state lives here later. -->
-          <button
-            type="button"
-            class="btn btn--ghost"
-            id="modal-export"
-            title="Export state (coming soon)"
-            disabled
-          >Export</button>
-          <button
-            type="button"
-            class="btn btn--ghost"
-            id="modal-import"
-            title="Import state (coming soon)"
-            disabled
-          >Import</button>
-          <button
-            type="button"
-            class="btn btn--icon"
-            id="modal-close"
-            aria-label="Close simulation"
-            data-modal-dismiss
-          >✕</button>
-        </div>
-      </header>
-
-      <!-- The applet's mount target. Cleared between launches. -->
-      <div id="applet-stage" class="modal__stage" aria-live="polite"></div>
-    </div>
-  </div>
-
-  <!-- app.js is an ES module; it resolves the registry and loads applets. -->
+  <!-- app.js launches each applet in its own isolated browser window. -->
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

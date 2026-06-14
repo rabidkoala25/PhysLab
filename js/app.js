@@ -1,30 +1,17 @@
 /* =================================================================
-   PhysLab — core application shell + applet loader
+   PhysLab — core application shell + applet launcher
    -----------------------------------------------------------------
    Responsibilities:
-     1. Resolve the applet registry.
-     2. Render the library dashboard grid.
-     3. Launch/teardown applets inside the isolated modal surface.
+     1. Render the library dashboard grid from the registry.
+     2. Launch each applet in its own dedicated, full-screen
+        browser window (a real OS-level pop-up, not an overlay).
 
-   Applet contract (every applet module default-exports this shape):
+   Each applet is a self-contained page (see /applets/demo) that
+   pulls shared, cross-cutting features from /js/applet-sdk.js
+   (60 FPS loop, state import/export, physics input validation).
 
-     export default {
-       meta: {
-         id:    'unique-slug',
-         title: 'Human Title',
-         description: 'One-line summary.',
-         icon:  '🧲',                 // emoji or short glyph
-         tags:  ['mechanics', '2d'],  // optional
-       },
-       // Called when the applet is opened. `ctx` exposes shell hooks.
-       mount(container, ctx) { ... },
-       // Optional. Called when the modal closes — free RAF loops,
-       // engines, listeners, GPU contexts, etc. here.
-       unmount() { ... },
-     };
-
-   Adding a new applet = drop a folder in /applets and add one line
-   to /applets/registry.js. No build step required.
+   Adding a new applet = drop a folder with an index.html into
+   /applets and add one entry to /applets/registry.js. No build step.
    ================================================================= */
 
 import registry from '../applets/registry.js';
@@ -32,139 +19,48 @@ import registry from '../applets/registry.js';
 /* -----------------------------------------------------------------
    DOM references
    ----------------------------------------------------------------- */
-const grid        = document.getElementById('applet-grid');
-const gridLoading = document.getElementById('grid-loading');
-const searchInput = document.getElementById('library-search');
+const grid         = document.getElementById('applet-grid');
+const gridLoading  = document.getElementById('grid-loading');
+const searchInput  = document.getElementById('library-search');
+const popupWarning = document.getElementById('popup-warning');
 
-const modal     = document.getElementById('applet-modal');
-const modalTitle= document.getElementById('modal-title');
-const modalDesc = document.getElementById('modal-desc');
-const stage     = document.getElementById('applet-stage');
-
-/* The applet currently mounted in the modal, so we can tear it down. */
-let activeApplet = null;
-/* Element focused before opening the modal — restored on close. */
-let lastFocused = null;
-
-/* =================================================================
-   Shell context — passed to every applet's mount().
-   This is the seam where future cross-cutting features are exposed
-   to applets without each applet re-implementing them.
-   ================================================================= */
-function createAppletContext(meta) {
-  return {
-    meta,
-
-    /* HOOK: import/export simulation state.
-       Applets register serialize()/deserialize() and the shell wires
-       these to the Export/Import toolbar buttons. */
-    state: {
-      register({ serialize, deserialize } = {}) {
-        this._serialize = serialize;
-        this._deserialize = deserialize;
-      },
-      exportToFile(filename = `${meta.id}-state.json`) {
-        if (!this._serialize) return;
-        const blob = new Blob([JSON.stringify(this._serialize(), null, 2)], {
-          type: 'application/json',
-        });
-        const url = URL.createObjectURL(blob);
-        const a = Object.assign(document.createElement('a'), { href: url, download: filename });
-        a.click();
-        URL.revokeObjectURL(url);
-      },
-      async importFromFile(file) {
-        if (!this._deserialize || !file) return;
-        this._deserialize(JSON.parse(await file.text()));
-      },
-    },
-
-    /* HOOK: physics input validation. Applets can push rule fns that
-       reject parameters violating real-world physical constraints. */
-    validation: {
-      rules: [],
-      addRule(fn) { this.rules.push(fn); },
-      check(params) {
-        const errors = [];
-        for (const rule of this.rules) {
-          const result = rule(params);
-          if (result) errors.push(result);
-        }
-        return { ok: errors.length === 0, errors };
-      },
-    },
-
-    /* HOOK: shared 60 FPS render-loop driver with hardware-accel
-       friendly timing. Applets opt in instead of managing their own
-       requestAnimationFrame bookkeeping. Returns a stop() handle. */
-    loop: {
-      start(step) {
-        let raf;
-        let prev = performance.now();
-        const tick = (now) => {
-          const dt = Math.min(now - prev, 50); // clamp long frames
-          prev = now;
-          step(dt, now);
-          raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(raf);
-      },
-    },
-  };
-}
+/* Track open applet windows so re-clicking focuses instead of dupes. */
+const openWindows = new Map();
 
 /* =================================================================
    Library grid
    ================================================================= */
-async function loadLibrary() {
-  const applets = [];
-
-  // Resolve each registered applet module to read its metadata.
-  for (const entry of registry) {
-    try {
-      const mod = await import(entry.path);
-      const applet = mod.default;
-      if (!applet || !applet.meta) {
-        console.warn(`[PhysLab] "${entry.path}" has no default export with meta; skipping.`);
-        continue;
-      }
-      applets.push({ ...applet, _path: entry.path });
-    } catch (err) {
-      console.error(`[PhysLab] Failed to load applet "${entry.path}":`, err);
-    }
-  }
-
+function renderLibrary() {
   gridLoading?.remove();
 
-  if (applets.length === 0) {
+  if (!registry.length) {
     grid.innerHTML = '<p class="library-grid__empty">No simulations registered yet.</p>';
     return;
   }
 
-  for (const applet of applets) grid.appendChild(buildCard(applet));
+  for (const applet of registry) grid.appendChild(buildCard(applet));
 }
 
 function buildCard(applet) {
-  const { meta } = applet;
   const card = document.createElement('button');
   card.type = 'button';
   card.className = 'applet-card';
   card.setAttribute('role', 'listitem');
-  card.dataset.search = `${meta.title} ${meta.description} ${(meta.tags || []).join(' ')}`.toLowerCase();
+  card.dataset.search =
+    `${applet.title} ${applet.description} ${(applet.tags || []).join(' ')}`.toLowerCase();
 
-  const tags = (meta.tags || [])
+  const tags = (applet.tags || [])
     .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
     .join('');
 
   card.innerHTML = `
-    <div class="applet-card__thumb" aria-hidden="true">${escapeHtml(meta.icon || '◎')}</div>
-    <h3 class="applet-card__title">${escapeHtml(meta.title)}</h3>
-    <p class="applet-card__desc">${escapeHtml(meta.description || '')}</p>
+    <div class="applet-card__thumb" aria-hidden="true">${escapeHtml(applet.icon || '◎')}</div>
+    <h3 class="applet-card__title">${escapeHtml(applet.title)}</h3>
+    <p class="applet-card__desc">${escapeHtml(applet.description || '')}</p>
     <div class="applet-card__tags">${tags}</div>
   `;
 
-  card.addEventListener('click', () => openApplet(applet));
+  card.addEventListener('click', () => launchApplet(applet));
   return card;
 }
 
@@ -177,44 +73,51 @@ function filterLibrary(query) {
 }
 
 /* =================================================================
-   Modal lifecycle
+   Launch — open the applet in its own dedicated full-screen window
    ================================================================= */
-async function openApplet(applet) {
-  closeApplet(); // ensure a clean stage if one was somehow open
+function launchApplet(applet) {
+  const name = `physlab-${applet.id}`;
 
-  const ctx = createAppletContext(applet.meta);
-  activeApplet = { applet, ctx };
-
-  modalTitle.textContent = applet.meta.title;
-  modalDesc.textContent = applet.meta.description || '';
-
-  lastFocused = document.activeElement;
-  modal.hidden = false;
-  document.body.style.overflow = 'hidden';
-
-  try {
-    await applet.mount(stage, ctx);
-  } catch (err) {
-    console.error(`[PhysLab] Applet "${applet.meta.id}" failed to mount:`, err);
-    stage.innerHTML = '<p class="library-grid__empty">This simulation failed to load.</p>';
+  // If this applet's window is already open, just focus it.
+  const existing = openWindows.get(name);
+  if (existing && !existing.closed) {
+    existing.focus();
+    return;
   }
 
-  document.getElementById('modal-close')?.focus();
-}
+  // Size the window to fill the screen and strip browser chrome so it
+  // reads as a dedicated, immersive simulation surface. The applet
+  // page then requests true fullscreen on first interaction.
+  const w = window.screen.availWidth;
+  const h = window.screen.availHeight;
+  const features = [
+    'popup=yes',
+    `width=${w}`,
+    `height=${h}`,
+    'left=0',
+    'top=0',
+    'noopener=no',
+    'menubar=no',
+    'toolbar=no',
+    'location=no',
+    'status=no',
+    'resizable=yes',
+    'scrollbars=yes',
+  ].join(',');
 
-function closeApplet() {
-  if (activeApplet?.applet.unmount) {
-    try {
-      activeApplet.applet.unmount();
-    } catch (err) {
-      console.error('[PhysLab] Error during applet unmount:', err);
-    }
+  const win = window.open(applet.url, name, features);
+
+  if (!win) {
+    // Pop-up blocked.
+    popupWarning.hidden = false;
+    setTimeout(() => { popupWarning.hidden = true; }, 8000);
+    return;
   }
-  activeApplet = null;
-  stage.innerHTML = '';
-  modal.hidden = true;
-  document.body.style.overflow = '';
-  lastFocused?.focus?.();
+
+  popupWarning.hidden = true;
+  openWindows.set(name, win);
+  win.focus();
+  try { win.moveTo(0, 0); win.resizeTo(w, h); } catch { /* some browsers disallow */ }
 }
 
 /* =================================================================
@@ -222,18 +125,11 @@ function closeApplet() {
    ================================================================= */
 function init() {
   searchInput?.addEventListener('input', (e) => filterLibrary(e.target.value));
-
-  // Any element with [data-modal-dismiss] closes the modal (backdrop, ✕).
-  modal.addEventListener('click', (e) => {
-    if (e.target.closest('[data-modal-dismiss]')) closeApplet();
+  // Tidy up references to windows the user has closed.
+  window.addEventListener('focus', () => {
+    for (const [k, w] of openWindows) if (w.closed) openWindows.delete(k);
   });
-
-  // Escape closes the active applet.
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !modal.hidden) closeApplet();
-  });
-
-  loadLibrary();
+  renderLibrary();
 }
 
 /* =================================================================

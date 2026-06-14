@@ -3,22 +3,38 @@
    -----------------------------------------------------------------
    The single list the shell reads to discover simulations.
 
+   Each applet is a fully self-contained page that launches in its
+   own dedicated browser window. An entry carries the card metadata
+   plus the URL of the applet's page.
+
    To add a new applet:
      1. Create a folder under /applets (e.g. /applets/projectile/).
-     2. Add an `applet.js` that default-exports the applet contract
-        (see js/app.js for the contract shape).
-     3. Add one line below pointing at that module.
+     2. Add an `index.html` page for it (use /applets/demo as a
+        template; import the shared SDK from /js/applet-sdk.js).
+     3. Add one entry below.
 
-   Paths are resolved relative to this file (an ES module), so they
-   work as-is on GitHub Pages with no build step.
+   `url` is resolved against THIS module's URL so paths stay correct
+   no matter who imports the registry (works as-is on GitHub Pages).
    ================================================================= */
 
-// Paths are resolved against THIS module's URL so they remain correct no
-// matter which module imports the registry (and work as-is on GitHub Pages).
 const resolve = (p) => new URL(p, import.meta.url).href;
 
 export default [
-  { path: resolve('./demo/applet.js') },
-  // { path: resolve('./projectile/applet.js') },
-  // { path: resolve('./pendulum/applet.js') },
+  {
+    id: 'zero-gravity-readme',
+    title: 'Zero-Gravity README',
+    description:
+      'A rigid-body demo: shatter a markdown README into floating letters you push with your cursor.',
+    icon: '🧲',
+    tags: ['rigid-body', 'matter.js', 'demo'],
+    url: resolve('./demo/index.html'),
+  },
+  // {
+  //   id: 'projectile',
+  //   title: 'Projectile Motion',
+  //   description: '…',
+  //   icon: '🎯',
+  //   tags: ['kinematics'],
+  //   url: resolve('./projectile/index.html'),
+  // },
 ];
