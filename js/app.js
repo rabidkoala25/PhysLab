@@ -14,7 +14,9 @@
    /applets and add one entry to /applets/registry.js. No build step.
    ================================================================= */
 
-import registry from '../applets/registry.js';
+/* Loaded dynamically in init() so a load failure surfaces a real
+   message instead of leaving the dashboard stuck on "Loading…". */
+let registry = [];
 
 /* -----------------------------------------------------------------
    DOM references
@@ -123,13 +125,28 @@ function launchApplet(applet) {
 /* =================================================================
    Global wiring
    ================================================================= */
-function init() {
+async function init() {
   searchInput?.addEventListener('input', (e) => filterLibrary(e.target.value));
   // Tidy up references to windows the user has closed.
   window.addEventListener('focus', () => {
     for (const [k, w] of openWindows) if (w.closed) openWindows.delete(k);
   });
-  renderLibrary();
+
+  try {
+    const mod = await import('../applets/registry.js');
+    registry = mod.default || [];
+    renderLibrary();
+  } catch (err) {
+    console.error('[PhysLab] Failed to load the applet registry:', err);
+    gridLoading?.remove();
+    grid.innerHTML = `
+      <p class="library-grid__empty">
+        Couldn't load the library. If you opened this page by double-clicking
+        the file (a <code>file://</code> address), open it through a web server
+        or your GitHub Pages URL instead — ES modules don't run over
+        <code>file://</code>.
+      </p>`;
+  }
 }
 
 /* =================================================================
