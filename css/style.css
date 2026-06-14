@@ -1,0 +1,460 @@
+/* =================================================================
+   PhysLab — Global stylesheet
+   Layout for the app shell, library dashboard, and applet modal.
+
+   The :root tokens below are the single source of truth for theming
+   and are the intended integration point for future control panels,
+   telemetry readouts, and overlay layers.
+   ================================================================= */
+
+:root {
+  /* --- Palette ----------------------------------------------------- */
+  --color-bg:            #0e1117;
+  --color-bg-elev:       #161b24;
+  --color-bg-elev-2:     #1d2430;
+  --color-surface:       #212a38;
+  --color-border:        #2c3645;
+  --color-border-strong: #3a4759;
+
+  --color-text:          #e8edf4;
+  --color-text-muted:    #9aa7b8;
+  --color-text-faint:    #647084;
+
+  --color-accent:        #4f9cff;
+  --color-accent-hover:  #6fb0ff;
+  --color-accent-soft:   rgba(79, 156, 255, 0.14);
+
+  /* Semantic colours reserved for telemetry / validation feedback. */
+  --color-ok:            #38d39f;
+  --color-warn:          #f5b94b;
+  --color-danger:        #ff6b6b;
+
+  /* Reserved channels for future vector overlays (velocity / accel). */
+  --color-vector-velocity:     #38d39f;
+  --color-vector-acceleration: #f5b94b;
+
+  /* --- Typography -------------------------------------------------- */
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", "Consolas", ui-monospace, monospace;
+
+  /* --- Spacing / shape -------------------------------------------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+
+  --radius-sm: 6px;
+  --radius:    10px;
+  --radius-lg: 16px;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.55);
+
+  /* --- Motion ----------------------------------------------------- */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur:  180ms;
+
+  /* --- Layout constants ------------------------------------------- */
+  --header-h:    68px;
+  --modal-max-w: 1180px;
+
+  /* HOOK: future control panels read from this rail width so the
+     simulation render area resizes predictably alongside them. */
+  --controls-rail-w: 300px;
+}
+
+/* =================================================================
+   Reset / base
+   ================================================================= */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(79, 156, 255, 0.10), transparent 60%),
+    var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, p { margin: 0; }
+
+button { font-family: inherit; }
+
+/* =================================================================
+   App header
+   ================================================================= */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 0 var(--space-6);
+  background: rgba(14, 17, 23, 0.78);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.app-header__logo {
+  font-size: 1.6rem;
+  color: var(--color-accent);
+  line-height: 1;
+}
+
+.app-header__title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.app-header__subtitle {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+/* --- Search ------------------------------------------------------- */
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  height: 40px;
+  min-width: 260px;
+  background: var(--color-bg-elev);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  transition: border-color var(--dur) var(--ease);
+}
+.search:focus-within { border-color: var(--color-accent); }
+.search__icon { color: var(--color-text-faint); }
+.search__input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+.search__input::placeholder { color: var(--color-text-faint); }
+
+/* =================================================================
+   Dashboard + library grid
+   ================================================================= */
+.dashboard {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6) var(--space-8);
+}
+
+.dashboard__intro { margin-bottom: var(--space-6); }
+
+.dashboard__heading {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.dashboard__lede {
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-5);
+}
+
+.library-grid__loading,
+.library-grid__empty {
+  grid-column: 1 / -1;
+  color: var(--color-text-faint);
+  font-size: 0.9rem;
+  padding: var(--space-6) 0;
+  text-align: center;
+}
+
+/* --- Applet card -------------------------------------------------- */
+.applet-card {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: linear-gradient(180deg, var(--color-bg-elev), var(--color-bg-elev-2));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  color: inherit;
+  box-shadow: var(--shadow-1);
+  transition:
+    transform var(--dur) var(--ease),
+    border-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+.applet-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-2);
+}
+.applet-card:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.applet-card__thumb {
+  display: grid;
+  place-items: center;
+  height: 120px;
+  font-size: 2.6rem;
+  border-radius: var(--radius);
+  background:
+    radial-gradient(120px 80px at 50% 30%, var(--color-accent-soft), transparent 70%),
+    var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.applet-card__title {
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+.applet-card__desc {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.applet-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+.tag {
+  font-size: 0.7rem;
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+/* =================================================================
+   Buttons
+   ================================================================= */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 38px;
+  padding: 0 var(--space-4);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--dur) var(--ease),
+    border-color var(--dur) var(--ease),
+    opacity var(--dur) var(--ease);
+}
+.btn:hover { background: var(--color-bg-elev-2); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn--primary {
+  color: #06243f;
+  background: var(--color-accent);
+  border-color: transparent;
+}
+.btn--primary:hover { background: var(--color-accent-hover); }
+
+.btn--ghost { background: transparent; }
+
+.btn--icon {
+  width: 38px;
+  padding: 0;
+  font-size: 1rem;
+}
+
+/* =================================================================
+   Modal / pop-up applet surface
+   ================================================================= */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+}
+.modal[hidden] { display: none; }
+
+.modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 7, 11, 0.72);
+  backdrop-filter: blur(4px);
+  animation: fade-in var(--dur) var(--ease);
+}
+
+.modal__window {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: var(--modal-max-w);
+  max-height: calc(100vh - var(--space-6) * 2);
+  background: var(--color-bg-elev);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+  animation: pop-in var(--dur) var(--ease);
+}
+
+.modal__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-elev-2);
+}
+.modal__title { font-size: 1.05rem; font-weight: 650; }
+.modal__desc  { font-size: 0.8rem; color: var(--color-text-muted); margin-top: 2px; }
+.modal__actions { display: flex; align-items: center; gap: var(--space-2); }
+
+/* The mount target. Applets own everything inside here. */
+.modal__stage {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--color-bg);
+}
+
+/* =================================================================
+   Applet workspace primitives
+   These classes are not used by the shell directly but are provided
+   as a shared vocabulary so every applet lays out consistently and
+   future features (telemetry, controls, overlays) slot in cleanly.
+   ================================================================= */
+
+/* A standard two-column applet layout: stage + controls rail. */
+.applet-layout {
+  display: grid;
+  grid-template-columns: 1fr var(--controls-rail-w);
+  gap: var(--space-4);
+  height: 100%;
+  padding: var(--space-4);
+}
+@media (max-width: 860px) {
+  .applet-layout { grid-template-columns: 1fr; }
+}
+
+/* HOOK: GPU/canvas render host. Positioned so overlay + telemetry
+   layers can be absolutely stacked on top of the simulation. */
+.render-host {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #05070b;
+  border: 1px solid var(--color-border);
+  isolation: isolate;          /* establishes a clean stacking context */
+  will-change: transform;      /* hint hardware acceleration */
+}
+.render-host__canvas,          /* base WebGL/WebGPU/2D sim canvas */
+.render-host__overlay {        /* vector overlay canvas (velocity/accel) */
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.render-host__overlay { pointer-events: none; z-index: 2; }
+
+/* HOOK: controls rail — parameter inputs + validation messaging. */
+.controls-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-bg-elev);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: auto;
+}
+.control-group { display: flex; flex-direction: column; gap: var(--space-2); }
+.control-group__label {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* Validation feedback slot (see input-validation hook in app.js). */
+.control-group__error {
+  font-size: 0.75rem;
+  color: var(--color-danger);
+  min-height: 1em;
+}
+
+/* HOOK: telemetry surfaces — charts, graphs, digital meters. */
+.telemetry {
+  display: grid;
+  gap: var(--space-3);
+}
+.meter {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+}
+.meter__label { font-size: 0.72rem; color: var(--color-text-muted); }
+.meter__value { font-size: 0.95rem; color: var(--color-text); }
+
+/* =================================================================
+   Animations
+   ================================================================= */
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
