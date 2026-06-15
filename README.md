@@ -22,10 +22,14 @@ simulators with a single, fast, extensible library of applets.
 │   └── applet-sdk.js     Shared hooks every applet page imports
 └── applets/
     ├── registry.js       The list of applets the shell discovers
-    └── demo/             "Zero-Gravity README" rigid-body demo
-        ├── index.html    Self-contained applet page
-        ├── applet.js     Applet logic (page controller)
-        └── demo.css      Scoped styles
+    ├── demo/             "Zero-Gravity README" rigid-body demo
+    │   ├── index.html    Self-contained applet page
+    │   ├── applet.js     Applet logic (page controller)
+    │   └── demo.css      Scoped styles
+    └── magnetic/         "Magnetic README" demo (springs + collisions)
+        ├── index.html
+        ├── applet.js
+        └── magnetic.css
 ```
 
 Each applet is a **fully self-contained page**. Clicking a card launches it in
@@ -86,6 +90,12 @@ Additional structural hooks live in the markup/CSS:
 Physics** and every individual letter detaches into an independent Matter.js
 rigid body in **zero gravity**. Moving the cursor repels the letters; invisible
 static perimeter walls keep every letter on-screen. Matter.js is loaded via CDN.
+
+A second demo, **Magnetic README** (`/applets/magnetic/`), builds on this: each
+letter springs back to its original position *and* orientation (so the document
+reassembles itself), the cursor is a real circular rigid body that physically
+collides with the letters, and each hitbox is the convex hull of the glyph's
+rasterised pixels rather than a loose rectangle.
 
 ## Running locally
 

@@ -29,6 +29,15 @@ export default [
     tags: ['rigid-body', 'matter.js', 'demo'],
     url: resolve('./demo/index.html'),
   },
+  {
+    id: 'magnetic-readme',
+    title: 'Magnetic README',
+    description:
+      'Letters magnetise back to their original place and orientation while a physical cursor collides with them.',
+    icon: '🔁',
+    tags: ['rigid-body', 'matter.js', 'springs'],
+    url: resolve('./magnetic/index.html'),
+  },
   // {
   //   id: 'projectile',
   //   title: 'Projectile Motion',
