@@ -28,7 +28,7 @@ const META = { id: 'magnetic-readme', title: 'Magnetic README' };
 /* Tunables. */
 const CURSOR_R          = 26;        // physical cursor radius (px)
 const HOME_SPRING       = 0.0000024; // pull toward original position
-const HOME_ANGLE_SPRING = 0.12;      // pull toward original orientation
+const HOME_ANGLE_SPRING = 0.00012;      // pull toward original orientation
 const HOME_ANGLE_DAMP   = 0.86;      // angular velocity damping
 
 /* The README markup. Every character here becomes a rigid body. */
