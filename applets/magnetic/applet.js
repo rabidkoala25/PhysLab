@@ -26,22 +26,24 @@ const MATTER_CDN =
 const META = { id: 'magnetic-readme', title: 'Magnetic README' };
 
 /* Adjustable parameters, surfaced as sliders in the Controls panel.
-   Values are friendly numbers; the simulation scales them as needed
-   (e.g. magnetStrength * 1e-6 → the actual spring force). */
+   Values are friendly dial numbers; the simulation scales them as
+   needed (magnetStrength * 1e-6 and returnTwist * 1e-5 → the actual
+   spring forces). Defaults fold in the hand-tuned values: a 12px
+   cursor and a gentle orientation pull (returnTwist 12 → 0.00012). */
 const PARAMS = {
-  cursorRadius:   { label: 'Cursor size',     min: 8,    max: 90,   step: 1,    value: 26, unit: 'px' },
+  cursorRadius:   { label: 'Cursor size',     min: 8,    max: 90,   step: 1,    value: 12, unit: 'px' },
   magnetStrength: { label: 'Magnet strength', min: 0,    max: 10,   step: 0.1,  value: 2.4 },
-  returnTwist:    { label: 'Return twist',    min: 0,    max: 0.4,  step: 0.01, value: 0.12 },
+  returnTwist:    { label: 'Return twist',    min: 0,    max: 100,  step: 1,    value: 12 },
   spinDamping:    { label: 'Spin damping',    min: 0.6,  max: 0.99, step: 0.01, value: 0.86 },
   bounciness:     { label: 'Bounciness',      min: 0,    max: 1,    step: 0.05, value: 0.35 },
   airDrag:        { label: 'Air drag',        min: 0,    max: 0.2,  step: 0.01, value: 0.06 },
 };
 
 const PRESETS = {
-  Default: { cursorRadius: 26, magnetStrength: 2.4, returnTwist: 0.12, spinDamping: 0.86, bounciness: 0.35, airDrag: 0.06 },
-  Floaty:  { cursorRadius: 34, magnetStrength: 1.0, returnTwist: 0.05, spinDamping: 0.90, bounciness: 0.20, airDrag: 0.02 },
-  Snappy:  { cursorRadius: 22, magnetStrength: 6.0, returnTwist: 0.25, spinDamping: 0.80, bounciness: 0.30, airDrag: 0.10 },
-  Chaotic: { cursorRadius: 60, magnetStrength: 0.6, returnTwist: 0.02, spinDamping: 0.75, bounciness: 0.90, airDrag: 0.01 },
+  Default: { cursorRadius: 12, magnetStrength: 2.4, returnTwist: 12, spinDamping: 0.86, bounciness: 0.35, airDrag: 0.06 },
+  Floaty:  { cursorRadius: 20, magnetStrength: 1.0, returnTwist: 6,  spinDamping: 0.90, bounciness: 0.20, airDrag: 0.02 },
+  Snappy:  { cursorRadius: 16, magnetStrength: 6.0, returnTwist: 40, spinDamping: 0.80, bounciness: 0.30, airDrag: 0.10 },
+  Chaotic: { cursorRadius: 48, magnetStrength: 0.6, returnTwist: 2,  spinDamping: 0.75, bounciness: 0.90, airDrag: 0.01 },
 };
 
 /* The README markup. Every character here becomes a rigid body. */
@@ -400,7 +402,7 @@ function startSimulation({ Matter, stage, readmeEl, canvas, fpsMeter, bodyMeter 
   runtime.stopLoop = ctx.loop.start((dt) => {
     // Live tunables (slider edits mutate V in place).
     const homeSpring = V.magnetStrength * 1e-6;
-    const angleSpring = V.returnTwist;
+    const angleSpring = V.returnTwist * 1e-5;
     const angleDamp = V.spinDamping;
 
     // 1) Magnetism: spring every letter toward its home pose.
