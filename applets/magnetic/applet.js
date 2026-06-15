@@ -18,18 +18,31 @@
    PhysLab shell. Cross-cutting features come from the shared SDK.
    ================================================================= */
 
-import { createContext, enterImmersive, exitImmersive } from '../../js/applet-sdk.js';
+import { createContext, createControls, enterImmersive, exitImmersive } from '../../js/applet-sdk.js';
 
 const MATTER_CDN =
   'https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js';
 
 const META = { id: 'magnetic-readme', title: 'Magnetic README' };
 
-/* Tunables. */
-const CURSOR_R          = 26;        // physical cursor radius (px)
-const HOME_SPRING       = 0.0000024; // pull toward original position
-const HOME_ANGLE_SPRING = 0.12;      // pull toward original orientation
-const HOME_ANGLE_DAMP   = 0.86;      // angular velocity damping
+/* Adjustable parameters, surfaced as sliders in the Controls panel.
+   Values are friendly numbers; the simulation scales them as needed
+   (e.g. magnetStrength * 1e-6 → the actual spring force). */
+const PARAMS = {
+  cursorRadius:   { label: 'Cursor size',     min: 8,    max: 90,   step: 1,    value: 26, unit: 'px' },
+  magnetStrength: { label: 'Magnet strength', min: 0,    max: 10,   step: 0.1,  value: 2.4 },
+  returnTwist:    { label: 'Return twist',    min: 0,    max: 0.4,  step: 0.01, value: 0.12 },
+  spinDamping:    { label: 'Spin damping',    min: 0.6,  max: 0.99, step: 0.01, value: 0.86 },
+  bounciness:     { label: 'Bounciness',      min: 0,    max: 1,    step: 0.05, value: 0.35 },
+  airDrag:        { label: 'Air drag',        min: 0,    max: 0.2,  step: 0.01, value: 0.06 },
+};
+
+const PRESETS = {
+  Default: { cursorRadius: 26, magnetStrength: 2.4, returnTwist: 0.12, spinDamping: 0.86, bounciness: 0.35, airDrag: 0.06 },
+  Floaty:  { cursorRadius: 34, magnetStrength: 1.0, returnTwist: 0.05, spinDamping: 0.90, bounciness: 0.20, airDrag: 0.02 },
+  Snappy:  { cursorRadius: 22, magnetStrength: 6.0, returnTwist: 0.25, spinDamping: 0.80, bounciness: 0.30, airDrag: 0.10 },
+  Chaotic: { cursorRadius: 60, magnetStrength: 0.6, returnTwist: 0.02, spinDamping: 0.75, bounciness: 0.90, airDrag: 0.01 },
+};
 
 /* The README markup. Every character here becomes a rigid body. */
 const README_HTML = `
@@ -277,15 +290,42 @@ function startSimulation({ Matter, stage, readmeEl, canvas, fpsMeter, bodyMeter 
   engine.gravity.y = 0;
   runtime.engine = engine;
 
+  /* ----- Live, persisted controls (sliders + presets) -------- */
+  let letters = [];
+  let cursor = null;
+  let currentCursorR = PARAMS.cursorRadius.value;
+
+  const controls = createControls({
+    id: META.id,
+    title: 'Controls',
+    params: PARAMS,
+    presets: PRESETS,
+    onChange: (v) => {
+      // Cursor size: rescale the physical circle body live.
+      if (cursor && v.cursorRadius !== currentCursorR) {
+        const f = v.cursorRadius / currentCursorR;
+        Body.scale(cursor, f, f);
+        currentCursorR = v.cursorRadius;
+      }
+      // Material properties applied to every letter live.
+      for (const b of letters) {
+        b.restitution = v.bounciness;
+        b.frictionAir = v.airDrag;
+      }
+    },
+  });
+  runtime.controls = controls;
+  const V = controls.values; // live reference; slider edits mutate in place
+
   /* Measure the README and spawn one shaped body per character. */
   const chars = measureCharacters(readmeEl, rect);
   const opts = {
-    frictionAir: 0.06,   // damping so letters settle gently at home
+    frictionAir: V.airDrag,   // damping so letters settle gently at home
     friction: 0,
-    restitution: 0.35,
+    restitution: V.bounciness,
   };
 
-  const letters = chars.map((c) => {
+  letters = chars.map((c) => {
     const hull = glyphHull(c.ch, c.font, c.w, c.h);
     let body = null;
     if (hull) {
@@ -322,11 +362,12 @@ function startSimulation({ Matter, stage, readmeEl, canvas, fpsMeter, bodyMeter 
   ]);
 
   /* ----- Physical cursor: a static circle that collides ------- */
-  const cursor = Bodies.circle(-9999, -9999, CURSOR_R, {
+  cursor = Bodies.circle(-9999, -9999, V.cursorRadius, {
     isStatic: true,
     restitution: 0.4,
     friction: 0.1,
   });
+  currentCursorR = V.cursorRadius;
   Composite.add(engine.world, cursor);
 
   const mouse = { x: -9999, y: -9999, px: -9999, py: -9999, active: false };
@@ -357,17 +398,22 @@ function startSimulation({ Matter, stage, readmeEl, canvas, fpsMeter, bodyMeter 
   let fpsAccum = 0;
 
   runtime.stopLoop = ctx.loop.start((dt) => {
+    // Live tunables (slider edits mutate V in place).
+    const homeSpring = V.magnetStrength * 1e-6;
+    const angleSpring = V.returnTwist;
+    const angleDamp = V.spinDamping;
+
     // 1) Magnetism: spring every letter toward its home pose.
     for (const body of letters) {
       const dx = body.zgHome.x - body.position.x;
       const dy = body.zgHome.y - body.position.y;
       Body.applyForce(body, body.position, {
-        x: dx * HOME_SPRING * body.mass,
-        y: dy * HOME_SPRING * body.mass,
+        x: dx * homeSpring * body.mass,
+        y: dy * homeSpring * body.mass,
       });
       // Orientation spring: damp spin and pull the angle back to 0.
       const a = Math.atan2(Math.sin(body.angle), Math.cos(body.angle));
-      Body.setAngularVelocity(body, body.angularVelocity * HOME_ANGLE_DAMP - a * HOME_ANGLE_SPRING);
+      Body.setAngularVelocity(body, body.angularVelocity * angleDamp - a * angleSpring);
     }
 
     // 2) Move the physical cursor; give it velocity so it imparts
@@ -385,7 +431,7 @@ function startSimulation({ Matter, stage, readmeEl, canvas, fpsMeter, bodyMeter 
     mouse.py = mouse.y;
 
     Engine.update(engine, Math.min(dt, 16.667));
-    draw(g2d, W, H, letters, mouse);
+    draw(g2d, W, H, letters, mouse, V.cursorRadius);
 
     frames++;
     fpsAccum += dt;
@@ -398,7 +444,7 @@ function startSimulation({ Matter, stage, readmeEl, canvas, fpsMeter, bodyMeter 
 }
 
 /* Custom 2D draw pass — Matter handles physics, we render glyphs. */
-function draw(g2d, W, H, letters, mouse) {
+function draw(g2d, W, H, letters, mouse, cursorR) {
   g2d.clearRect(0, 0, W, H);
 
   g2d.textAlign = 'center';
@@ -417,7 +463,7 @@ function draw(g2d, W, H, letters, mouse) {
   // The physical cursor, drawn as a circle.
   if (mouse.active) {
     g2d.beginPath();
-    g2d.arc(mouse.x, mouse.y, CURSOR_R, 0, Math.PI * 2);
+    g2d.arc(mouse.x, mouse.y, cursorR, 0, Math.PI * 2);
     g2d.fillStyle = 'rgba(79,156,255,0.15)';
     g2d.fill();
     g2d.lineWidth = 2;
@@ -429,6 +475,8 @@ function draw(g2d, W, H, letters, mouse) {
 function stopSimulation() {
   runtime.stopLoop?.();
   runtime.stopLoop = null;
+  runtime.controls?.destroy();
+  runtime.controls = null;
   for (const [el, type, fn] of runtime.listeners) el.removeEventListener(type, fn);
   runtime.listeners = [];
   if (runtime.engine && window.Matter) {

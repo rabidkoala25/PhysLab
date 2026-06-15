@@ -107,3 +107,178 @@ export function exitImmersive() {
   }
   return Promise.resolve();
 }
+
+/* =================================================================
+   Controls / Preferences framework
+   -----------------------------------------------------------------
+   A reusable, slide-in "Controls" tab giving any applet a panel of
+   parameter sliders, one-click presets, and a reset — with the
+   user's choices persisted to localStorage per applet.
+
+   Usage:
+
+     const controls = createControls({
+       id: META.id,                       // namespace for saved prefs
+       params: {
+         cursorRadius: { label: 'Cursor size', min: 8, max: 90, step: 1, value: 26, unit: 'px' },
+         magnetStrength: { label: 'Magnet strength', min: 0, max: 10, step: 0.1, value: 2.4 },
+       },
+       presets: {
+         Default: { cursorRadius: 26, magnetStrength: 2.4 },
+         Snappy:  { cursorRadius: 22, magnetStrength: 6.0 },
+       },
+       onChange: (values, key) => { ... },  // react to changes live
+     });
+
+     controls.values.cursorRadius;  // read live, e.g. inside a loop
+     controls.destroy();            // remove when the applet tears down
+
+   Each `params` entry: { label, min, max, step, value (default),
+   unit? }. The framework only stores/edits numbers; the applet is
+   free to scale them (e.g. magnetStrength * 1e-6) when consuming.
+   ================================================================= */
+export function createControls(config = {}) {
+  const {
+    id = 'applet',
+    title = 'Controls',
+    params = {},
+    presets = {},
+    onChange = () => {},
+    container = document.body,
+    open = false,
+  } = config;
+
+  const STORAGE_KEY = `physlab:controls:${id}`;
+
+  const defaults = {};
+  for (const k in params) defaults[k] = params[k].value;
+
+  let savedPrefs = {};
+  try { savedPrefs = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { /* ignore */ }
+  const values = { ...defaults, ...savedPrefs };
+
+  const decimalsOf = (step) => (String(step).split('.')[1] || '').length;
+  const fmt = (p, v) => `${Number(v).toFixed(decimalsOf(p.step))}${p.unit ? ' ' + p.unit : ''}`;
+
+  /* --- DOM ----------------------------------------------------- */
+  const tab = document.createElement('button');
+  tab.type = 'button';
+  tab.className = 'ctl-tab';
+  tab.innerHTML = '<span aria-hidden="true">⚙</span> Controls';
+
+  const panel = document.createElement('aside');
+  panel.className = 'ctl-panel';
+  panel.dataset.open = open ? 'true' : 'false';
+  panel.setAttribute('aria-label', `${title} panel`);
+
+  const presetNames = Object.keys(presets);
+  const presetHtml = presetNames.length
+    ? `<div class="ctl-section">
+         <div class="ctl-section__label">Presets</div>
+         <div class="ctl-presets">
+           ${presetNames.map((n) => `<button type="button" class="ctl-preset" data-preset="${n}">${n}</button>`).join('')}
+         </div>
+       </div>`
+    : '';
+
+  const slidersHtml = Object.entries(params).map(([key, p]) => `
+    <div class="ctl-row" data-row="${key}">
+      <div class="ctl-row__head">
+        <label for="ctl-${id}-${key}">${p.label || key}</label>
+        <span class="ctl-row__val" data-val="${key}">${fmt(p, values[key])}</span>
+      </div>
+      <input
+        id="ctl-${id}-${key}"
+        class="ctl-slider"
+        type="range"
+        min="${p.min}" max="${p.max}" step="${p.step}"
+        value="${values[key]}"
+        data-key="${key}"
+      />
+    </div>`).join('');
+
+  panel.innerHTML = `
+    <div class="ctl-panel__head">
+      <span class="ctl-panel__title">${title}</span>
+      <button type="button" class="ctl-panel__close" data-close aria-label="Close controls">✕</button>
+    </div>
+    <div class="ctl-panel__body">
+      ${presetHtml}
+      <div class="ctl-section">
+        <div class="ctl-section__label">Parameters</div>
+        ${slidersHtml}
+      </div>
+      <div class="ctl-section">
+        <button type="button" class="ctl-reset" data-reset>↺ Reset to defaults</button>
+      </div>
+    </div>
+  `;
+
+  container.appendChild(tab);
+  container.appendChild(panel);
+
+  /* --- Behaviour ----------------------------------------------- */
+  const save = () => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(values)); } catch { /* ignore */ }
+  };
+
+  const reflect = (key) => {
+    const input = panel.querySelector(`input[data-key="${key}"]`);
+    const out = panel.querySelector(`[data-val="${key}"]`);
+    if (input) input.value = values[key];
+    if (out) out.textContent = fmt(params[key], values[key]);
+  };
+
+  const setValue = (key, raw, emit = true) => {
+    if (!(key in params)) return;
+    values[key] = Number(raw);
+    reflect(key);
+    save();
+    if (emit) onChange(values, key);
+  };
+
+  const open_ = () => { panel.dataset.open = 'true'; tab.dataset.hidden = 'true'; };
+  const close_ = () => { panel.dataset.open = 'false'; tab.dataset.hidden = 'false'; };
+
+  tab.addEventListener('click', open_);
+  panel.addEventListener('input', (e) => {
+    const key = e.target.dataset.key;
+    if (key) setValue(key, e.target.value);
+  });
+  panel.addEventListener('click', (e) => {
+    if (e.target.closest('[data-close]')) return close_();
+    if (e.target.closest('[data-reset]')) {
+      for (const k in defaults) setValue(k, defaults[k], false);
+      onChange(values, null);
+      return;
+    }
+    const preset = e.target.closest('[data-preset]');
+    if (preset) {
+      const cfg = presets[preset.dataset.preset] || {};
+      for (const k in cfg) if (k in params) setValue(k, cfg[k], false);
+      onChange(values, null);
+    }
+  });
+
+  // Initial sync so the applet starts from the (possibly saved) values.
+  onChange(values, null);
+
+  return {
+    values,
+    el: panel,
+    get: (k) => values[k],
+    set: (k, v) => setValue(k, v),
+    applyPreset: (name) => {
+      const cfg = presets[name] || {};
+      for (const k in cfg) if (k in params) setValue(k, cfg[k], false);
+      onChange(values, null);
+    },
+    reset: () => {
+      for (const k in defaults) setValue(k, defaults[k], false);
+      onChange(values, null);
+    },
+    open: open_,
+    close: close_,
+    destroy: () => { tab.remove(); panel.remove(); },
+  };
+}

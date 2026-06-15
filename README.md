@@ -75,6 +75,18 @@ seams so features can be added without each applet reinventing them:
 | `ctx.state.register({serialize, deserialize})` | **Import/export** a simulation's state config to/from a local file. |
 | `ctx.validation.addRule(fn)` | **Input validation** against real-world physics laws; blocks impossible parameters. |
 | `enterImmersive()` / `exitImmersive()` | Maximise the window and toggle true fullscreen. |
+| `createControls({ params, presets, onChange })` | A slide-in **Controls tab**: parameter **sliders** + one-click **presets**, with the user's choices **persisted** to `localStorage` per applet. |
+
+### Controls / Preferences framework
+
+`createControls()` (in `js/applet-sdk.js`) gives any applet a settings tab with
+zero boilerplate. Define numeric `params` (label / min / max / step / default /
+unit) and optional named `presets`; the panel renders sliders with live
+readouts, preset buttons, and a reset, and saves edits to `localStorage` so they
+survive reloads. `controls.values` is a live object you can read inside a render
+loop, and `onChange` fires for reacting immediately. The Magnetic README applet
+uses it for cursor size, magnet strength, return twist, spin damping, bounciness,
+and air drag.
 
 Additional structural hooks live in the markup/CSS:
 
